@@ -1,5 +1,35 @@
 # Hackathon Frontend: One Piece — Rumbo al Grand Line
 
+## Implementación del equipo
+
+Tripulación: **Nereuz_Enterprise**. Código asignado por el backend: **TEAM-030**.
+
+### Integrantes
+
+| Nombre | Código |
+|:-------|:-------|
+| Leonardo Martinez | 202410148 |
+| Marcelo Rosillo | 202410597 |
+| Christian Mar | 202210512 |
+
+### Cómo ejecutar
+
+Requiere Node.js 24 LTS. En la raíz del repositorio:
+
+```bash
+cp .env.example .env.local
+npm install
+npm run dev
+```
+
+En Windows también se puede copiar `.env.example` como `.env.local` desde el Explorador. Para validar la entrega:
+
+```bash
+npm run build
+```
+
+La implementación entregada cubre CP1, CP2 y deja lista la aplicación para la inspección presencial del CP3.
+
 > *"¡El One Piece existe!"* — Edward Newgate
 
 ## Descripción General
