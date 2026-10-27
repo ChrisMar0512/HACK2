@@ -2,17 +2,21 @@ import type { ReactNode } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './auth'
 import { AppLayout } from './components/AppLayout'
-import { PageLoader } from './components/ui'
+import { ErrorState, PageLoader } from './components/ui'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { WantedDetailPage } from './pages/WantedDetailPage'
 import { WantedPage } from './pages/WantedPage'
+import { NewsPage } from './pages/NewsPage'
+import { NewsDetailPage } from './pages/NewsDetailPage'
+import { SagasPage } from './pages/SagasPage'
+import { SagaStoryPage } from './pages/SagaStoryPage'
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { status } = useAuth()
+  const { status, restoreError, retryRestore } = useAuth()
   const location = useLocation()
 
-  if (status === 'loading') return <PageLoader />
+  if (status === 'loading') return restoreError ? <ErrorState message={restoreError} onRetry={retryRestore} /> : <PageLoader />
   if (status === 'anonymous') {
     return <Navigate to="/login" replace state={{ from: { pathname: location.pathname, search: location.search, hash: location.hash } }} />
   }
@@ -39,6 +43,11 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="wanted" element={<WantedPage />} />
         <Route path="wanted/:id" element={<WantedDetailPage />} />
+        <Route path="news" element={<NewsPage />}>
+          <Route path=":id" element={<NewsDetailPage />} />
+        </Route>
+        <Route path="sagas" element={<SagasPage />} />
+        <Route path="sagas/:id" element={<SagaStoryPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

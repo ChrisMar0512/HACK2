@@ -29,7 +29,7 @@ export function DashboardPage() {
       apiRequest<DashboardSummary>('/dashboard/summary', { token, signal: controller.signal }),
       apiRequest<LogPose>('/log-pose', { token, signal: controller.signal }),
     ])
-      .then(([summary, logPose]) => setData({ summary, logPose }))
+      .then(([summary, logPose]) => { if (!controller.signal.aborted) setData({ summary, logPose }) })
       .catch((reason: unknown) => {
         if (!isAbortError(reason)) setError(errorMessage(reason))
       })
@@ -43,6 +43,7 @@ export function DashboardPage() {
 
   return (
     <div className="page-stack">
+      {error && data && <div className="inline-error" role="alert"><p>{error}</p><button className="button button--primary" type="button" onClick={retry}>Reintentar</button></div>}
       <header className="page-hero dashboard-hero">
         <div>
           <span className="eyebrow">Bitácora de navegación</span>

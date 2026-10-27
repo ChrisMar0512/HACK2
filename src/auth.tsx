@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { apiRequest, ApiError } from './api'
+import { apiRequest, ApiError, errorMessage } from './api'
 import type { LoginResponse, MeResponse, Team, User } from './types'
 
 const TOKEN_KEY = 'log-pose-token'
@@ -18,6 +18,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   register: (teamName: string, email: string, password: string) => Promise<void>
   logout: () => void
+  restoreError: string
+  retryRestore: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -25,6 +27,9 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthContextValue['status']>('loading')
   const [session, setSession] = useState<Session | null>(null)
+  const [restoreError, setRestoreError] = useState('')
+  const [restoreAttempt, setRestoreAttempt] = useState(0)
+  const retryRestore = useCallback(() => setRestoreAttempt((value) => value + 1), [])
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
@@ -39,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController()
+    setRestoreError('')
     const token = localStorage.getItem(TOKEN_KEY)
     if (!token) {
       setStatus('anonymous')
@@ -47,18 +53,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     apiRequest<MeResponse>('/auth/me', { token, signal: controller.signal })
       .then((me) => {
+        if (controller.signal.aborted) return
         setSession({ token, ...me })
         setStatus('authenticated')
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
-        localStorage.removeItem(TOKEN_KEY)
-        setSession(null)
-        setStatus('anonymous')
+        if (controller.signal.aborted) return
+        if (error instanceof ApiError && error.status === 401) clearSession()
+        else setRestoreError(errorMessage(error))
       })
 
     return () => controller.abort()
-  }, [])
+  }, [restoreAttempt, clearSession])
+
+  useEffect(() => {
+    if (!session) return
+    const remaining = new Date(session.expiresAt).getTime() - Date.now()
+    const timer = window.setTimeout(clearSession, Math.max(0, Math.min(remaining, 2147483647)))
+    return () => window.clearTimeout(timer)
+  }, [session, clearSession])
 
   const storeLogin = useCallback((response: LoginResponse) => {
     localStorage.setItem(TOKEN_KEY, response.token)
@@ -93,7 +107,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     register,
     logout: clearSession,
-  }), [status, session, login, register, clearSession])
+    restoreError,
+    retryRestore,
+  }), [status, session, login, register, clearSession, restoreError, retryRestore])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -3,14 +3,14 @@ import type { FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../api'
 import { useAuth } from '../auth'
-import { Spinner } from '../components/ui'
+import { ErrorState, PageLoader, Spinner } from '../components/ui'
 
 interface LocationState {
   from?: { pathname: string; search: string; hash: string }
 }
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
-  const { status, login, register } = useAuth()
+  const { status, login, register, restoreError, retryRestore } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [teamName, setTeamName] = useState('')
@@ -20,7 +20,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [formError, setFormError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  if (status === 'authenticated') return <Navigate to="/" replace />
+  const state = location.state as LocationState | null
+  const target = state?.from ? `${state.from.pathname}${state.from.search}${state.from.hash}` : '/'
+  if (status === 'loading') return restoreError ? <ErrorState message={restoreError} onRetry={retryRestore} /> : <PageLoader />
+  if (status === 'authenticated') return <Navigate to={target} replace />
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -30,10 +33,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     try {
       if (mode === 'register') await register(teamName.trim(), email.trim(), password)
       else await login(email.trim(), password)
-      const state = location.state as LocationState | null
-      const target = state?.from
-        ? `${state.from.pathname}${state.from.search}${state.from.hash}`
-        : '/'
       navigate(target, { replace: true })
     } catch (error: unknown) {
       if (error instanceof ApiError) {
@@ -105,7 +104,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
           <p className="auth-switch">
             {isRegister ? '¿Ya tienen cuenta?' : '¿Todavía no tienen bandera?'}{' '}
-            <Link to={isRegister ? '/login' : '/register'}>{isRegister ? 'Iniciar sesión' : 'Registrarse'}</Link>
+            <Link to={isRegister ? '/login' : '/register'} state={location.state}>{isRegister ? 'Iniciar sesión' : 'Registrarse'}</Link>
           </p>
         </div>
       </section>

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { apiRequest, errorMessage, isAbortError, toQuery } from '../api'
 import { useToken } from '../auth'
-import { EmptyState, ErrorState, StatusPill, formatBerries } from '../components/ui'
+import { EmptyState, StatusPill, formatBerries } from '../components/ui'
 import type { Crew, WantedPage as WantedPageData } from '../types'
 import { fruitLabels, wantedStatusLabels, wantedStatusTones } from '../wanted'
 
@@ -10,6 +10,7 @@ const validStatuses = new Set(['AT_LARGE', 'CAPTURED', 'MISSING'])
 const validFruits = new Set(['PARAMECIA', 'ZOAN', 'LOGIA', 'NONE'])
 const validSorts = new Set(['bounty,desc', 'name,asc', 'updatedAt,desc'])
 const validSizes = new Set([10, 20, 50])
+const listCache = new Map<string, { data: WantedPageData; scrollY: number }>()
 
 interface WantedFilters {
   page: number
@@ -43,13 +44,29 @@ export function WantedPage() {
   const token = useToken()
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => parseFilters(searchParams), [searchParams])
+  const queryKey = toQuery({ ...filters })
+  const cacheKey = `${token}:${queryKey}`
   const [queryInput, setQueryInput] = useState(filters.q ?? '')
   const [crews, setCrews] = useState<Crew[]>([])
-  const [data, setData] = useState<WantedPageData | null>(null)
+  const [loaded, setLoaded] = useState<{ key: string; data: WantedPageData } | null>(() => {
+    const saved = listCache.get(cacheKey)
+    return saved ? { key: cacheKey, data: saved.data } : null
+  })
+  const data = loaded?.key === cacheKey ? loaded.data : null
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const generation = useRef(0)
+  const [crewError, setCrewError] = useState('')
+  const [crewAttempt, setCrewAttempt] = useState(0)
+
+  useLayoutEffect(() => {
+    const cached = listCache.get(cacheKey)
+    if (!cached) return
+    setLoaded({ key: cacheKey, data: cached.data })
+    const frame = requestAnimationFrame(() => window.scrollTo({ top: cached.scrollY, behavior: 'instant' }))
+    return () => cancelAnimationFrame(frame)
+  }, [cacheKey])
 
   const updateFilters = useCallback((changes: Record<string, string | number | undefined>, resetPage = true) => {
     setSearchParams((current) => {
@@ -76,14 +93,27 @@ export function WantedPage() {
   useEffect(() => {
     const controller = new AbortController()
     apiRequest<Crew[]>('/crews', { token, signal: controller.signal })
-      .then(setCrews)
-      .catch(() => setCrews([]))
+      .then((response) => { if (!controller.signal.aborted) setCrews(response) })
+      .catch((reason: unknown) => { if (!isAbortError(reason)) setCrewError(errorMessage(reason)) })
     return () => controller.abort()
-  }, [token])
+  }, [token, crewAttempt])
+
+  useEffect(() => {
+    if (filters.crewId && crews.length > 0 && !crews.some((crew) => crew.id === filters.crewId)) {
+      updateFilters({ crewId: undefined })
+    }
+  }, [filters.crewId, crews, updateFilters])
 
   useEffect(() => {
     const controller = new AbortController()
     const currentGeneration = ++generation.current
+    const cached = listCache.get(cacheKey)
+    if (cached && attempt === 0) {
+      setLoaded({ key: cacheKey, data: cached.data })
+      setError('')
+      setLoading(false)
+      return () => { controller.abort(); generation.current++ }
+    }
     setLoading(true)
     setError('')
     const query = toQuery({
@@ -97,12 +127,14 @@ export function WantedPage() {
     })
     apiRequest<WantedPageData>(`/wanted${query}`, { token, signal: controller.signal })
       .then((response) => {
-        if (currentGeneration !== generation.current) return
-        if (response.totalPages > 0 && filters.page >= response.totalPages) {
-          updateFilters({ page: response.totalPages - 1 }, false)
+        if (controller.signal.aborted || currentGeneration !== generation.current) return
+        if (filters.page > 0 && filters.page >= response.totalPages) {
+          updateFilters({ page: Math.max(0, response.totalPages - 1) }, false)
           return
         }
-        setData(response)
+        listCache.set(cacheKey, { data: response, scrollY: 0 })
+        if (listCache.size > 24) listCache.delete(listCache.keys().next().value ?? '')
+        setLoaded({ key: cacheKey, data: response })
       })
       .catch((reason: unknown) => {
         if (!isAbortError(reason) && currentGeneration === generation.current) setError(errorMessage(reason))
@@ -110,8 +142,8 @@ export function WantedPage() {
       .finally(() => {
         if (!controller.signal.aborted && currentGeneration === generation.current) setLoading(false)
       })
-    return () => controller.abort()
-  }, [token, filters.page, filters.size, filters.status, filters.crewId, filters.fruit, filters.q, filters.sort, attempt, updateFilters])
+    return () => { controller.abort(); generation.current++ }
+  }, [token, cacheKey, filters.page, filters.size, filters.status, filters.crewId, filters.fruit, filters.q, filters.sort, attempt, updateFilters])
 
   const visiblePages = useMemo(() => {
     if (!data) return []
@@ -130,7 +162,7 @@ export function WantedPage() {
         <label className="search-field">
           <span aria-hidden="true">⌕</span>
           <span className="sr-only">Buscar por nombre o epíteto</span>
-          <input value={queryInput} onChange={(event) => setQueryInput(event.target.value)} placeholder="Buscar nombre o epíteto…" />
+          <input value={queryInput} maxLength={80} onChange={(event) => setQueryInput(event.target.value)} placeholder="Buscar nombre o epíteto…" />
           {queryInput && <button type="button" aria-label="Limpiar búsqueda" onClick={() => setQueryInput('')}>×</button>}
         </label>
         <label className="compact-field"><span>Estado</span><select value={filters.status ?? ''} onChange={(event) => updateFilters({ status: event.target.value || undefined })}><option value="">Todos</option>{Object.entries(wantedStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -139,15 +171,17 @@ export function WantedPage() {
         <button className="button button--ghost filter-reset" type="button" onClick={() => { setQueryInput(''); setSearchParams({}) }}>Limpiar</button>
       </section>
 
+      {crewError && <div className="inline-error" role="alert"><p>No se pudieron cargar las tripulaciones: {crewError}</p><button className="button button--ghost" type="button" onClick={() => { setCrewError(''); setCrewAttempt((value) => value + 1) }}>Reintentar tripulaciones</button></div>}
+
       <div className="list-toolbar">
         <label className="compact-field compact-field--inline"><span>Ordenar</span><select value={filters.sort} onChange={(event) => updateFilters({ sort: event.target.value })}><option value="bounty,desc">Mayor recompensa</option><option value="name,asc">Nombre A–Z</option><option value="updatedAt,desc">Actualizados</option></select></label>
         <label className="compact-field compact-field--inline"><span>Mostrar</span><select value={filters.size} onChange={(event) => updateFilters({ size: Number(event.target.value) })}>{[10, 20, 50].map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
       </div>
 
-      {error && !data ? <ErrorState message={error} onRetry={() => setAttempt((value) => value + 1)} /> : (
+      {error && <div className="inline-error" role="alert"><p>{error}</p><button className="button button--primary" type="button" onClick={() => setAttempt((value) => value + 1)}>Reintentar</button></div>}
         <section className={loading ? 'wanted-grid wanted-grid--loading' : 'wanted-grid'} aria-busy={loading}>
           {data?.content.map((wanted) => (
-            <Link className="wanted-card" key={wanted.id} to={`/wanted/${wanted.id}`} state={{ fromSearch: searchParams.toString() }}>
+            <Link className="wanted-card" key={wanted.id} to={`/wanted/${wanted.id}`} state={{ fromList: true, fromSearch: searchParams.toString() }} onClick={() => { if (data) listCache.set(cacheKey, { data, scrollY: window.scrollY }) }}>
               <div className="wanted-card__top">
                 <span className="wanted-card__seal" aria-hidden="true">{wanted.name.slice(0, 1)}</span>
                 <StatusPill tone={wantedStatusTones[wanted.status]}>{wantedStatusLabels[wanted.status]}</StatusPill>
@@ -158,9 +192,8 @@ export function WantedPage() {
               <span className="wanted-card__action">Abrir expediente →</span>
             </Link>
           ))}
-          {loading && !data && Array.from({ length: filters.size > 10 ? 10 : filters.size }, (_, index) => <div className="wanted-card skeleton" key={index}><i /><i /><i /><i /></div>)}
+          {loading && !data && Array.from({ length: filters.size }, (_, index) => <div className="wanted-card skeleton" key={index}><i /><i /><i /><i /></div>)}
         </section>
-      )}
 
       {!loading && data?.content.length === 0 && <EmptyState title="Ningún cartel coincide" description="Cambia o limpia los filtros para volver a buscar en el archivo." action={<button className="button button--primary" type="button" onClick={() => { setQueryInput(''); setSearchParams({}) }}>Limpiar filtros</button>} />}
 

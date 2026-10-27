@@ -8,6 +8,8 @@ import { StatusPill } from './ui'
 const navItems = [
   { to: '/', label: 'Bitácora', end: true },
   { to: '/wanted', label: 'Se busca', end: false },
+  { to: '/news', label: 'News Coo', end: false },
+  { to: '/sagas', label: 'Poneglyph', end: false },
 ]
 
 export function AppLayout() {
@@ -17,6 +19,17 @@ export function AppLayout() {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [logPose, setLogPose] = useState<LogPose | null>(null)
+  const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    const recheck = () => setRefresh((value) => value + 1)
+    window.addEventListener('focus', recheck)
+    window.addEventListener('logpose:refresh', recheck)
+    return () => {
+      window.removeEventListener('focus', recheck)
+      window.removeEventListener('logpose:refresh', recheck)
+    }
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -26,7 +39,7 @@ export function AppLayout() {
         if (error instanceof ApiError && error.status === 401) logout()
       })
     return () => controller.abort()
-  }, [token, logout, location.key])
+  }, [token, logout, location.pathname, refresh])
 
   function handleLogout() {
     logout()
@@ -63,6 +76,7 @@ export function AppLayout() {
               {item.label}
             </NavLink>
           ))}
+          <button className="mobile-logout button button--ghost" type="button" onClick={handleLogout}>Cerrar sesión</button>
         </nav>
 
         <div className="crew-menu">

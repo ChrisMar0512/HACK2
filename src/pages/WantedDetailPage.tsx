@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiRequest, errorMessage, isAbortError } from '../api'
 import { useToken } from '../auth'
@@ -8,6 +8,7 @@ import { fruitLabels, roleLabels, wantedStatusLabels, wantedStatusTones } from '
 
 interface DetailLocationState {
   fromSearch?: string
+  fromList?: boolean
 }
 
 export function WantedDetailPage() {
@@ -19,12 +20,15 @@ export function WantedDetailPage() {
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
 
+  useLayoutEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [id])
+
   useEffect(() => {
     if (!id) return
     const controller = new AbortController()
     setError('')
+    setWanted(null)
     apiRequest<WantedDetail>(`/wanted/${encodeURIComponent(id)}`, { token, signal: controller.signal })
-      .then(setWanted)
+      .then((response) => { if (!controller.signal.aborted) setWanted(response) })
       .catch((reason: unknown) => {
         if (!isAbortError(reason)) setError(errorMessage(reason))
       })
@@ -35,11 +39,11 @@ export function WantedDetailPage() {
   const listUrl = state?.fromSearch ? `/wanted?${state.fromSearch}` : '/wanted'
 
   if (error && !wanted) return <ErrorState message={error} onRetry={() => setAttempt((value) => value + 1)} />
-  if (!wanted) return <PageLoader />
+  if (!wanted || wanted.id !== id) return <PageLoader />
 
   return (
     <div className="page-stack detail-page">
-      <button className="back-link" type="button" onClick={() => state?.fromSearch ? navigate(-1) : navigate(listUrl)}>← Volver al listado</button>
+      <button className="back-link" type="button" onClick={() => state?.fromList ? navigate(-1) : navigate(listUrl)}>← Volver al listado</button>
 
       <section className="wanted-detail">
         <div className="wanted-detail__poster">

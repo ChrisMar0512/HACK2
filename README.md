@@ -28,7 +28,19 @@ En Windows también se puede copiar `.env.example` como `.env.local` desde el Ex
 npm run build
 ```
 
-La implementación entregada cubre CP1, CP2 y deja lista la aplicación para la inspección presencial del CP3.
+La implementación incluye CP1, CP2, CP4 y CP5. CP3 es una inspección presencial: solo el equipo docente puede otorgar el Log Pose. Noticias y sagas respetan la respuesta `423 LOG_POSE_REQUIRED` hasta aprobarla.
+
+En PowerShell, si la política de ejecución bloquea `npm.ps1`, utilicen:
+
+```powershell
+npm.cmd install
+npm.cmd run dev
+npm.cmd run build
+```
+
+Rutas: `/`, `/login`, `/register`, `/wanted`, `/wanted/:id`, `/news`, `/news/:id`, `/sagas` y `/sagas/:id`.
+
+El feed usa cursores e IntersectionObserver y conserva las noticias al abrir un detalle. Las sagas usan las coordenadas y paletas del backend, guardan la etapa en el fragmento de la URL y admiten navegación por teclado, movimiento reducido y alternativas para navegadores sin APIs de animación modernas.
 
 > *"¡El One Piece existe!"* — Edward Newgate
 
