@@ -1,0 +1,17 @@
+{
+  "teamCode": "TEAM-XXX",
+  "members": [
+    {
+      "name": "Integrante 1",
+      "code": "202XXXXX"
+    },
+    {
+      "name": "Integrante 2",
+      "code": "202XXXXX"
+    },
+    {
+      "name": "Integrante 3",
+      "code": "202XXXXX"
+    }
+  ]
+}

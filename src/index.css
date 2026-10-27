@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-ocean: #090e17;
+    --bg-card: #0f172a;
+    --gold-pirate: #f59e0b;
+    --crimson-bounty: #dc2626;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: #070d17;
+    color: #e2e8f0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Wanted poster stylized font styling & texture feel */
+.wanted-paper {
+  background-color: #f6ecdc;
+  color: #261608;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  border: 4px solid #3d2314;
+}
+
+.wanted-paper-dark {
+  background-color: #1a1614;
+  color: #f1dfc4;
+  border: 2px solid #5a3d28;
+}
+
+/* Custom crisp scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #090e17;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
